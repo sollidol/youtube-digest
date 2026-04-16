@@ -8,7 +8,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from .config import settings
-from .ideas import extract_ideas, save_idea
+from .ideas import extract_ideas, save_ideas
 from .llm import summarize
 from .metadata import fetch_video_meta
 from .storage import save_digest
@@ -204,25 +204,17 @@ async def handle_save_ideas(callback: CallbackQuery):
         await callback.answer("Ничего не выбрано.", show_alert=True)
         return
 
-    saved = []
-    for i in sorted(selected):
-        idea = cached["ideas"][i]
-        path = save_idea(
-            title=idea["title"],
-            description=idea["description"],
-            tags=idea.get("tags", []),
-            source_url=cached["url"],
-            source_title=cached["title"],
-            source_channel=cached["channel"],
-        )
-        saved.append(path.name)
+    chosen = [cached["ideas"][i] for i in sorted(selected)]
+    count = save_ideas(
+        ideas=chosen,
+        source_url=cached["url"],
+        source_title=cached["title"],
+        source_channel=cached["channel"],
+    )
 
-    await callback.answer(f"Сохранено {len(saved)} идей!")
+    await callback.answer(f"Сохранено {count} идей!")
 
-    text = f"✅ Сохранено {len(saved)} идей в бэклог:\n"
-    for name in saved:
-        text += f"• `{name}`\n"
-
+    text = f"✅ Сохранено {count} идей в бэклог `ideas-backlog.md`"
     try:
         await callback.message.edit_text(text, parse_mode="Markdown")
     except TelegramBadRequest:

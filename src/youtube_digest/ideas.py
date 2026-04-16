@@ -5,7 +5,7 @@ import httpx
 
 from .config import settings
 
-IDEAS_DIR = Path("/opt/dev/knowledge_base/ideas")
+IDEAS_FILE = Path("/opt/dev/knowledge_base/ideas-backlog.md")
 
 EXTRACT_PROMPT = """\
 Из саммари видео извлеки конкретные идеи, которые можно применить в бизнесе или рабочих процессах.
@@ -62,39 +62,24 @@ async def extract_ideas(summary: str, video_title: str, channel: str) -> list[di
     return []
 
 
-def save_idea(
-    title: str,
-    description: str,
-    tags: list[str],
+def save_ideas(
+    ideas: list[dict],
     source_url: str,
     source_title: str,
     source_channel: str,
-) -> Path:
-    IDEAS_DIR.mkdir(parents=True, exist_ok=True)
+) -> int:
+    IDEAS_FILE.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
 
-    slug = "".join(c if c.isalnum() or c in "-_ " else "" for c in title)[:50].strip()
-    slug = slug.replace(" ", "-").lower() or "idea"
-    filename = f"{now.strftime('%Y%m%d')}_{slug}.md"
-    path = IDEAS_DIR / filename
+    if not IDEAS_FILE.exists():
+        IDEAS_FILE.write_text("# Бэклог идей\n\n", encoding="utf-8")
 
-    counter = 1
-    while path.exists():
-        path = IDEAS_DIR / f"{now.strftime('%Y%m%d')}_{slug}_{counter}.md"
-        counter += 1
+    tags_fmt = lambda t: " ".join(f"`#{x}`" for x in t)
+    lines = [f"\n## [{source_title}]({source_url}) — {source_channel} ({now.strftime('%Y-%m-%d')})\n"]
+    for idea in ideas:
+        lines.append(f"- [ ] **{idea['title']}** — {idea['description']} {tags_fmt(idea.get('tags', []))}")
 
-    tags_str = ", ".join(tags)
-    content = f"""---
-title: "{title}"
-status: new
-tags: [{tags_str}]
-source: {source_url}
-source_title: "{source_title}"
-source_channel: "{source_channel}"
-date: {now.strftime('%Y-%m-%d')}
----
+    with IDEAS_FILE.open("a", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
-{description}
-"""
-    path.write_text(content, encoding="utf-8")
-    return path
+    return len(ideas)
