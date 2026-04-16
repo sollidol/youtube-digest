@@ -55,13 +55,33 @@ async def analyze(
             },
             json=payload,
         )
+
+        if resp.status_code == 402:
+            raise LLMError("💳 Баланс OpenRouter пуст. Пополни на openrouter.ai/credits")
+        if resp.status_code == 429:
+            raise LLMError("⏳ Лимит запросов OpenRouter. Подожди пару минут.")
+        if resp.status_code == 401:
+            raise LLMError("🔑 Невалидный API-ключ OpenRouter.")
         resp.raise_for_status()
+
         data = resp.json()
+
+    error = data.get("error")
+    if error:
+        code = error.get("code", 0)
+        msg = error.get("message", "")
+        if code == 402 or "credit" in msg.lower() or "balance" in msg.lower():
+            raise LLMError("💳 Баланс OpenRouter пуст. Пополни на openrouter.ai/credits")
+        raise LLMError(f"OpenRouter: {msg}")
 
     content = data["choices"][0]["message"]["content"]
     log.debug("LLM raw response length: %d", len(content) if content else 0)
 
     if not content:
-        raise ValueError(f"Empty LLM response. Full data: {json.dumps(data)[:500]}")
+        raise LLMError(f"Пустой ответ от LLM. Data: {json.dumps(data)[:300]}")
 
     return _extract_json(content)
+
+
+class LLMError(Exception):
+    """Error with a user-friendly message."""

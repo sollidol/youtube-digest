@@ -8,7 +8,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from .config import settings
 from .ideas import save_ideas
-from .llm import analyze
+from .llm import LLMError, analyze
 from .metadata import fetch_video_meta
 from .transcript import extract_video_id, fetch_transcript
 
@@ -90,6 +90,10 @@ async def handle_link(message: Message):
 
     try:
         result = await analyze(transcript, meta["title"], meta["channel"])
+    except LLMError as e:
+        log.warning("LLM error: %s", e)
+        await status.edit_text(f"❌ {e}")
+        return
     except Exception as e:
         log.error("LLM failed: %s", e)
         await status.edit_text("❌ Ошибка LLM. Попробуй ещё раз.")
