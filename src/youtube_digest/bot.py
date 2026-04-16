@@ -105,7 +105,7 @@ async def handle_link(message: Message):
     if not ideas:
         await status.edit_text(
             f"📹 {meta['title']}\n🎙 {meta['channel']}\n\n"
-            "🤷 Применимых идей не нашлось — видео общеобразовательное."
+            "🤷 Применимых идей не нашлось."
         )
         return
 
@@ -117,14 +117,31 @@ async def handle_link(message: Message):
         "selected": set(range(len(ideas))),
     }
 
-    header = f"📹 {meta['title']}\n🎙 {meta['channel']}\n\n💡 *Идеи ({len(ideas)}):*\n\n"
-    ideas_text = ""
+    try:
+        await _send_ideas(status, video_id)
+    except Exception as e:
+        log.error("Failed to send ideas: %s", e, exc_info=True)
+        await status.edit_text(f"❌ Ошибка отправки: {type(e).__name__}: {e}")
+
+
+async def _send_ideas(status_msg, video_id: str):
+    cached = _digest_cache[video_id]
+    ideas = cached["ideas"]
+    header = f"📹 {cached['title']}\n🎙 {cached['channel']}\n\n💡 Идеи ({len(ideas)}):\n\n"
+
+    # Отправляем заголовок, заменяя статус
+    await status_msg.edit_text(header.strip())
+
+    # Каждую идею — отдельным сообщением, последнее — с кнопками
     for i, idea in enumerate(ideas):
         tags = ", ".join(f"#{t}" for t in idea.get("tags", []))
-        ideas_text += f"✅ *{i + 1}. {idea['title']}*\n{idea['description']}\n_{tags}_\n\n"
-
-    kb = _build_ideas_keyboard(video_id)
-    await _safe_send(status, header + ideas_text, edit=True, reply_markup=kb)
+        text = f"*{i + 1}. {idea['title']}*\n{idea['description']}\n_{tags}_"
+        is_last = i == len(ideas) - 1
+        kb = _build_ideas_keyboard(video_id) if is_last else None
+        try:
+            await status_msg.answer(text, parse_mode="Markdown", reply_markup=kb)
+        except TelegramBadRequest:
+            await status_msg.answer(text, reply_markup=kb)
 
 
 def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
