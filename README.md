@@ -23,7 +23,16 @@ Telegram-бот, который извлекает применимые идеи
 - **Выборочное сохранение** — inline-кнопки ✅/⬜ на каждую идею, сохраняешь только нужные
 - **Единый бэклог** — все идеи в одном `ideas-backlog.md` с чекбоксами, тегами и ссылками на источник
 - **Любая тематика** — бизнес, здоровье, воспитание, отношения, психология, продуктивность
-- **Любая модель** — работает через OpenRouter (Claude, GPT, Gemini, DeepSeek и др.)
+- **Переключение моделей** — `/model` в боте: Haiku 4.5 (~$0.05/видео), Sonnet 4.6 (~$0.25/видео), Gemini Flash (~$0.01/видео). Выбор сохраняется для всех последующих видео
+- **Понятные ошибки** — пустой баланс, лимит запросов, невалидный ключ — бот скажет что именно не так
+
+### Команды бота
+
+| Команда | Описание |
+|---|---|
+| `/start` | Справка и текущая модель |
+| `/model` | Переключить модель анализа |
+| Ссылка | Извлечь идеи из видео |
 
 ### Установка
 
@@ -43,7 +52,7 @@ cp .env.example .env
 | `TELEGRAM_BOT_TOKEN` | Токен бота от @BotFather |
 | `TELEGRAM_OWNER_ID` | Твой Telegram user ID (whitelist) |
 | `OPENROUTER_API_KEY` | Ключ OpenRouter |
-| `OPENROUTER_MODEL` | Модель (по умолчанию `anthropic/claude-sonnet-4-6`) |
+| `OPENROUTER_MODEL` | Модель по умолчанию (`anthropic/claude-haiku-4-5`) |
 | `OWNER_CONTEXT` | Описание тебя: бизнесы, интересы, ситуация — чем подробнее, тем точнее идеи |
 | `IDEA_TAGS` | Теги для категоризации идей через запятую |
 
@@ -76,7 +85,16 @@ Telegram bot that extracts actionable ideas from YouTube videos so you don't hav
 - **Selective saving** — inline ✅/⬜ buttons per idea, save only what matters
 - **Single backlog** — all ideas in one `ideas-backlog.md` with checkboxes, tags, and source links
 - **Any topic** — business, health, parenting, relationships, psychology, productivity
-- **Any model** — works via OpenRouter (Claude, GPT, Gemini, DeepSeek, etc.)
+- **Model switching** — `/model` in bot: Haiku 4.5 (~$0.05/video), Sonnet 4.6 (~$0.25/video), Gemini Flash (~$0.01/video). Choice persists for all subsequent videos
+- **Clear error messages** — empty balance, rate limits, invalid key — bot tells you exactly what's wrong
+
+### Bot commands
+
+| Command | Description |
+|---|---|
+| `/start` | Help and current model |
+| `/model` | Switch analysis model |
+| Link | Extract ideas from video |
 
 ### Setup
 
@@ -96,7 +114,7 @@ cp .env.example .env
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
 | `TELEGRAM_OWNER_ID` | Your Telegram user ID (whitelist) |
 | `OPENROUTER_API_KEY` | OpenRouter API key |
-| `OPENROUTER_MODEL` | Model (default `anthropic/claude-sonnet-4-6`) |
+| `OPENROUTER_MODEL` | Default model (`anthropic/claude-haiku-4-5`) |
 | `OWNER_CONTEXT` | Describe yourself: businesses, interests, situation — more detail = better ideas |
 | `IDEA_TAGS` | Comma-separated tags for categorizing ideas |
 

@@ -6,7 +6,8 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from .config import settings
+import youtube_digest.config as cfg
+from .config import settings, MODELS, MODEL_LABELS
 from .ideas import save_ideas
 from .llm import LLMError, analyze
 from .metadata import fetch_video_meta
@@ -55,15 +56,49 @@ def is_owner_cb(callback: CallbackQuery) -> bool:
     return callback.from_user and callback.from_user.id == settings.telegram_owner_id
 
 
+def _current_model_alias() -> str:
+    for alias, model_id in MODELS.items():
+        if model_id == cfg.active_model:
+            return alias
+    return cfg.active_model
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     if not is_owner(message):
         return
     await message.answer(
-        "Кидай ссылку на YouTube — получишь идеи для бизнеса.\n\n"
-        f"Модель: `{settings.openrouter_model}`",
+        "Кидай ссылку на YouTube — получишь идеи.\n\n"
+        f"Модель: *{_current_model_alias()}* (`{cfg.active_model}`)\n"
+        "Сменить: /model",
         parse_mode="Markdown",
     )
+
+
+@router.message(F.text == "/model", is_owner)
+async def cmd_model(message: Message):
+    buttons = []
+    for alias, label in MODEL_LABELS.items():
+        current = " ✓" if MODELS[alias] == cfg.active_model else ""
+        buttons.append([InlineKeyboardButton(
+            text=f"{label}{current}",
+            callback_data=f"model:{alias}",
+        )])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.answer("Выбери модель для анализа:", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("model:"), is_owner_cb)
+async def handle_model_switch(callback: CallbackQuery):
+    alias = callback.data.split(":", 1)[1]
+    model_id = MODELS.get(alias)
+    if not model_id:
+        await callback.answer("Неизвестная модель", show_alert=True)
+        return
+
+    cfg.active_model = model_id
+    await callback.answer(f"Модель: {alias}")
+    await callback.message.edit_text(f"✅ Модель переключена на *{alias}*\n`{model_id}`", parse_mode="Markdown")
 
 
 @router.message(F.text, is_owner)

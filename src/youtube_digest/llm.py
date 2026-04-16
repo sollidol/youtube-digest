@@ -4,6 +4,7 @@ import re
 
 import httpx
 
+import youtube_digest.config as cfg
 from .config import settings
 from .prompts import SYSTEM_PROMPT_TEMPLATE, USER_PROMPT_TEMPLATE
 
@@ -37,7 +38,7 @@ async def analyze(
     )
 
     payload = {
-        "model": settings.openrouter_model,
+        "model": cfg.active_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
