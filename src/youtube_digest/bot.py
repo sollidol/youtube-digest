@@ -198,6 +198,14 @@ def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
     if row:
         buttons.append(row)
 
+    select_row = []
+    if len(selected) < len(ideas):
+        select_row.append(InlineKeyboardButton(text="☑️ Все", callback_data=f"sel_all:{video_id}"))
+    if selected:
+        select_row.append(InlineKeyboardButton(text="◻️ Снять все", callback_data=f"sel_none:{video_id}"))
+    if select_row:
+        buttons.append(select_row)
+
     action_row = []
     if selected:
         label = f"💾 Сохранить ({len(selected)})" if len(selected) < len(ideas) else "💾 Сохранить все"
@@ -206,6 +214,38 @@ def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
     buttons.append(action_row)
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.callback_query(F.data.startswith("sel_all:"), is_owner_cb)
+async def handle_select_all(callback: CallbackQuery):
+    video_id = callback.data.split(":", 1)[1]
+    cached = cache.get(video_id)
+    if not cached:
+        await callback.answer("Кэш не найден.", show_alert=True)
+        return
+    cached["selected"] = set(range(len(cached["ideas"])))
+    cache.update(video_id)
+    await callback.answer()
+    try:
+        await callback.message.edit_reply_markup(reply_markup=_build_ideas_keyboard(video_id))
+    except TelegramBadRequest:
+        pass
+
+
+@router.callback_query(F.data.startswith("sel_none:"), is_owner_cb)
+async def handle_select_none(callback: CallbackQuery):
+    video_id = callback.data.split(":", 1)[1]
+    cached = cache.get(video_id)
+    if not cached:
+        await callback.answer("Кэш не найден.", show_alert=True)
+        return
+    cached["selected"] = set()
+    cache.update(video_id)
+    await callback.answer()
+    try:
+        await callback.message.edit_reply_markup(reply_markup=_build_ideas_keyboard(video_id))
+    except TelegramBadRequest:
+        pass
 
 
 @router.callback_query(F.data.startswith("toggle:"), is_owner_cb)
