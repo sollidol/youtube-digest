@@ -189,9 +189,9 @@ async def _send_ideas(status_msg, video_id: str):
 
 def _idea_kb(video_id: str, idx: int, selected: bool) -> InlineKeyboardMarkup:
     if selected:
-        btn = InlineKeyboardButton(text="❌ Убрать", callback_data=f"toggle:{video_id}:{idx}")
+        btn = InlineKeyboardButton(text="✅ Взято", callback_data=f"toggle:{video_id}:{idx}")
     else:
-        btn = InlineKeyboardButton(text="✅ Взять", callback_data=f"toggle:{video_id}:{idx}")
+        btn = InlineKeyboardButton(text="❌ Не берём", callback_data=f"toggle:{video_id}:{idx}")
     return InlineKeyboardMarkup(inline_keyboard=[[btn]])
 
 
