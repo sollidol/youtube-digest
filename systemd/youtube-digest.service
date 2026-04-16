@@ -1,0 +1,15 @@
+[Unit]
+Description=YouTube Digest Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=dev
+WorkingDirectory=/opt/dev/projects/youtube-digest
+ExecStart=/opt/dev/projects/youtube-digest/.venv/bin/python -m youtube_digest
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/dev/projects/youtube-digest/.env
+
+[Install]
+WantedBy=multi-user.target
