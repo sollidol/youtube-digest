@@ -7,6 +7,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import youtube_digest.config as cfg
+from . import cache
 from .config import settings, MODELS, MODEL_LABELS
 from .ideas import save_ideas
 from .llm import LLMError, analyze
@@ -20,7 +21,6 @@ router = Router()
 
 TG_LIMIT = 4096
 
-_digest_cache: dict[str, dict] = {}
 
 
 async def _safe_send(msg, text: str, edit: bool = False, reply_markup=None):
@@ -144,13 +144,13 @@ async def handle_link(message: Message):
         )
         return
 
-    _digest_cache[video_id] = {
+    cache.put(video_id, {
         "ideas": ideas,
         "title": meta["title"],
         "channel": meta["channel"],
         "url": url,
         "selected": set(range(len(ideas))),
-    }
+    })
 
     try:
         await _send_ideas(status, video_id)
@@ -160,7 +160,7 @@ async def handle_link(message: Message):
 
 
 async def _send_ideas(status_msg, video_id: str):
-    cached = _digest_cache[video_id]
+    cached = cache.get(video_id)
     ideas = cached["ideas"]
     header = f"📹 {cached['title']}\n🎙 {cached['channel']}\n\n💡 Идеи ({len(ideas)}):\n\n"
 
@@ -180,7 +180,7 @@ async def _send_ideas(status_msg, video_id: str):
 
 
 def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
-    cached = _digest_cache[video_id]
+    cached = cache.get(video_id)
     ideas = cached["ideas"]
     selected = cached["selected"]
 
@@ -212,7 +212,7 @@ def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
 async def handle_toggle_idea(callback: CallbackQuery):
     _, video_id, idx_str = callback.data.split(":", 2)
     idx = int(idx_str)
-    cached = _digest_cache.get(video_id)
+    cached = cache.get(video_id)
     if not cached or "selected" not in cached:
         await callback.answer("Кэш не найден.", show_alert=True)
         return
@@ -221,6 +221,7 @@ async def handle_toggle_idea(callback: CallbackQuery):
         cached["selected"].discard(idx)
     else:
         cached["selected"].add(idx)
+    cache.update(video_id)
 
     await callback.answer()
     kb = _build_ideas_keyboard(video_id)
@@ -233,7 +234,7 @@ async def handle_toggle_idea(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("save_ideas:"), is_owner_cb)
 async def handle_save_ideas(callback: CallbackQuery):
     video_id = callback.data.split(":", 1)[1]
-    cached = _digest_cache.get(video_id)
+    cached = cache.get(video_id)
     if not cached or "ideas" not in cached:
         await callback.answer("Идеи не найдены в кэше.", show_alert=True)
         return
