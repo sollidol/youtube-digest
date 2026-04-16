@@ -162,88 +162,62 @@ async def handle_link(message: Message):
 async def _send_ideas(status_msg, video_id: str):
     cached = cache.get(video_id)
     ideas = cached["ideas"]
-    header = f"📹 {cached['title']}\n🎙 {cached['channel']}\n\n💡 Идеи ({len(ideas)}):\n\n"
+    chat_id = status_msg.chat.id
 
-    # Отправляем заголовок, заменяя статус
-    await status_msg.edit_text(header.strip())
+    header = f"📹 {cached['title']}\n🎙 {cached['channel']}\n\n💡 Идеи ({len(ideas)}):"
+    await status_msg.edit_text(header)
 
-    # Каждую идею — отдельным сообщением, последнее — с кнопками
+    msg_ids = []
     for i, idea in enumerate(ideas):
         tags = ", ".join(f"#{t}" for t in idea.get("tags", []))
         text = f"*{i + 1}. {idea['title']}*\n{idea['description']}\n_{tags}_"
-        is_last = i == len(ideas) - 1
-        kb = _build_ideas_keyboard(video_id) if is_last else None
+        kb = _idea_kb(video_id, i, selected=True)
         try:
-            await status_msg.answer(text, parse_mode="Markdown", reply_markup=kb)
+            sent = await status_msg.answer(text, parse_mode="Markdown", reply_markup=kb)
         except TelegramBadRequest:
-            await status_msg.answer(text, reply_markup=kb)
+            sent = await status_msg.answer(text, reply_markup=kb)
+        msg_ids.append(sent.message_id)
+
+    # Summary message with save/cancel
+    summary = await status_msg.answer("⬆️ Отметь нужные идеи, затем сохрани", reply_markup=_summary_kb(video_id))
+
+    cached["msg_ids"] = msg_ids
+    cached["summary_msg_id"] = summary.message_id
+    cached["chat_id"] = chat_id
+    cache.update(video_id)
 
 
-def _build_ideas_keyboard(video_id: str) -> InlineKeyboardMarkup:
+def _idea_kb(video_id: str, idx: int, selected: bool) -> InlineKeyboardMarkup:
+    if selected:
+        btn = InlineKeyboardButton(text="❌ Убрать", callback_data=f"toggle:{video_id}:{idx}")
+    else:
+        btn = InlineKeyboardButton(text="✅ Взять", callback_data=f"toggle:{video_id}:{idx}")
+    return InlineKeyboardMarkup(inline_keyboard=[[btn]])
+
+
+def _summary_kb(video_id: str) -> InlineKeyboardMarkup:
     cached = cache.get(video_id)
-    ideas = cached["ideas"]
     selected = cached["selected"]
+    total = len(cached["ideas"])
 
-    buttons = []
-    row = []
-    for i in range(len(ideas)):
-        mark = "✅" if i in selected else "⬜"
-        row.append(InlineKeyboardButton(
-            text=f"{mark} {i + 1}",
-            callback_data=f"toggle:{video_id}:{i}",
-        ))
-        if len(row) == 4:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-
-    select_row = []
-    if len(selected) < len(ideas):
-        select_row.append(InlineKeyboardButton(text="☑️ Все", callback_data=f"sel_all:{video_id}"))
+    rows = []
     if selected:
-        select_row.append(InlineKeyboardButton(text="◻️ Снять все", callback_data=f"sel_none:{video_id}"))
-    if select_row:
-        buttons.append(select_row)
-
-    action_row = []
-    if selected:
-        label = f"💾 Сохранить ({len(selected)})" if len(selected) < len(ideas) else "💾 Сохранить все"
-        action_row.append(InlineKeyboardButton(text=label, callback_data=f"save_ideas:{video_id}"))
-    action_row.append(InlineKeyboardButton(text="❌ Не сохранять", callback_data="cancel_ideas"))
-    buttons.append(action_row)
-
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+        label = f"💾 Сохранить ({len(selected)}/{total})" if len(selected) < total else f"💾 Сохранить все ({total})"
+        rows.append([InlineKeyboardButton(text=label, callback_data=f"save_ideas:{video_id}")])
+    rows.append([InlineKeyboardButton(text="❌ Не сохранять", callback_data="cancel_ideas")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.callback_query(F.data.startswith("sel_all:"), is_owner_cb)
-async def handle_select_all(callback: CallbackQuery):
-    video_id = callback.data.split(":", 1)[1]
+async def _update_summary(bot: Bot, video_id: str):
     cached = cache.get(video_id)
-    if not cached:
-        await callback.answer("Кэш не найден.", show_alert=True)
+    if not cached or "summary_msg_id" not in cached:
         return
-    cached["selected"] = set(range(len(cached["ideas"])))
-    cache.update(video_id)
-    await callback.answer()
     try:
-        await callback.message.edit_reply_markup(reply_markup=_build_ideas_keyboard(video_id))
-    except TelegramBadRequest:
-        pass
-
-
-@router.callback_query(F.data.startswith("sel_none:"), is_owner_cb)
-async def handle_select_none(callback: CallbackQuery):
-    video_id = callback.data.split(":", 1)[1]
-    cached = cache.get(video_id)
-    if not cached:
-        await callback.answer("Кэш не найден.", show_alert=True)
-        return
-    cached["selected"] = set()
-    cache.update(video_id)
-    await callback.answer()
-    try:
-        await callback.message.edit_reply_markup(reply_markup=_build_ideas_keyboard(video_id))
+        await bot.edit_message_reply_markup(
+            chat_id=cached["chat_id"],
+            message_id=cached["summary_msg_id"],
+            reply_markup=_summary_kb(video_id),
+        )
     except TelegramBadRequest:
         pass
 
@@ -259,16 +233,18 @@ async def handle_toggle_idea(callback: CallbackQuery):
 
     if idx in cached["selected"]:
         cached["selected"].discard(idx)
+        selected = False
     else:
         cached["selected"].add(idx)
+        selected = True
     cache.update(video_id)
 
     await callback.answer()
-    kb = _build_ideas_keyboard(video_id)
     try:
-        await callback.message.edit_reply_markup(reply_markup=kb)
+        await callback.message.edit_reply_markup(reply_markup=_idea_kb(video_id, idx, selected))
     except TelegramBadRequest:
         pass
+    await _update_summary(callback.bot, video_id)
 
 
 @router.callback_query(F.data.startswith("save_ideas:"), is_owner_cb)
