@@ -1,16 +1,30 @@
+import json
+import logging
+import re
+
 import httpx
 
 from .config import settings
 from .prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 
+log = logging.getLogger(__name__)
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
-async def summarize(
+def _extract_json(text: str) -> dict:
+    text = text.strip()
+    m = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+    if m:
+        text = m.group(1).strip()
+    return json.loads(text)
+
+
+async def analyze(
     transcript: str,
     title: str = "Неизвестно",
     channel: str = "Неизвестно",
-) -> str:
+) -> dict:
     user_msg = USER_PROMPT_TEMPLATE.format(
         title=title,
         channel=channel,
@@ -23,11 +37,11 @@ async def summarize(
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_msg},
         ],
-        "max_tokens": 2048,
+        "max_tokens": 16384,
         "temperature": 0.3,
     }
 
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         resp = await client.post(
             OPENROUTER_URL,
             headers={
@@ -39,4 +53,10 @@ async def summarize(
         resp.raise_for_status()
         data = resp.json()
 
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    log.debug("LLM raw response length: %d", len(content) if content else 0)
+
+    if not content:
+        raise ValueError(f"Empty LLM response. Full data: {json.dumps(data)[:500]}")
+
+    return _extract_json(content)
