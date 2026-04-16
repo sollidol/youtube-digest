@@ -5,7 +5,7 @@ import re
 import httpx
 
 from .config import settings
-from .prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from .prompts import SYSTEM_PROMPT_TEMPLATE, USER_PROMPT_TEMPLATE
 
 log = logging.getLogger(__name__)
 
@@ -31,10 +31,15 @@ async def analyze(
         transcript=transcript[:120_000],
     )
 
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        owner_context=settings.owner_context,
+        tags=settings.idea_tags,
+    )
+
     payload = {
         "model": settings.openrouter_model,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
         ],
         "max_tokens": 16384,
